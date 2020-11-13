@@ -1,0 +1,102 @@
+<project name="paraSonarQube" default="compilar" basedir=".">
+	<description>
+		Fichero build de Ant con los objetivos de apoyo para el uso de maven
+	</description>
+
+	<!-- Properties -->
+	<property name="jacocoagent" location="target/coverage/jacoco.exec" />
+	<property environment="env"/> 
+
+	<!-- Condiciones para el tratamiento de OS -->
+	<condition property="isWindows">
+		<os family="windows" />
+	</condition>
+	<condition property="isUnix">
+		<os family="unix" />
+	</condition>
+
+	<!-- Condicion para comprobar la existencia del agente -->
+	<condition property="jacoco-agent-present">
+		<available file="${jacocoagent}" />
+	</condition>
+
+	<!-- Objetivos -->
+
+	<!-- Objetivo compilar -->
+	<target name="compilar" description="obtiene dependencias y compila" depends="limpiar">
+		<exec dir="." executable="${executable}">
+			<arg line="${arglineIni} mvn compile test-compile ${arglineEnd}" />
+		</exec>
+	</target>
+
+	<!-- Objetivo ejecutarTodo -->
+	<target name="ejecutarTodo" depends="ejecutarTestsTDDyCajaNegra, ejecutarTestEnAislamiento" />
+
+	<!-- Objetivo ejecutarTestsTDDyCajaNegra -->
+	<target name="ejecutarTestsTDDyCajaNegra" description="pruebas TDD y de caja negra" depends="os-check">
+		<exec dir="." executable="${executable}">
+			<arg line="${arglineIni} mvn test -P Unit${arglineEnd}" />
+		</exec>
+	</target>
+
+	<!-- Objetivo ejecutarTestEnAislamiento -->
+	<target name="ejecutarTestEnAislamiento" description="pruebas de caja blanca en aislamiento" depends="os-check">
+		<exec dir="." executable="${executable}">
+			<arg line="${arglineIni} mvn test -P Isolation${arglineEnd}" />
+		</exec>
+	</target>
+
+	<!-- Objetivo ejecutarPruebasSecuencia -->
+	<target name="ejecutarPruebasSecuencia" description="caja negra, pruebas de secuencia" depends="os-check">
+		<exec dir="." executable="${executable}">
+			<arg line="${arglineIni} mvn test -P Sequence${arglineEnd}" />
+		</exec>
+	</target>
+
+	<!-- Objetivo obtenerInformeCobertura -->
+	<target name="obtenerInformeCobertura" description="obtener informes de cobertura" depends="compilar, prepare-agent">
+		<exec dir="." executable="${executable}">
+			<arg line="${arglineIni} mvn -X -Djacoco.dataFile=${jacocoagent} -Djacoco.outputDirectory=./jacoco_ut org.jacoco:jacoco-maven-plugin:report${arglineEnd}" />
+		</exec>
+	</target>
+
+	<target name="prepare-agent">
+		<exec dir="." executable="${executable}">
+			<arg line="${arglineIni} mvn -Djacoco.destFile=${jacocoagent} clean org.jacoco:jacoco-maven-plugin:prepare-agent install -Pcoverage-per-test${arglineEnd}"/>
+		</exec>
+	</target>
+
+	<!-- Objetivo medidas -->
+	<target name="medidas" description="obtener informe sobre medidas" depends="obtenerInformeCobertura">
+		<exec dir="." executable="${executable}">
+			<arg line="${arglineIni} mvn -P Unit, Integration jxr:jxr pmd:pmd sonar:sonar -Dsonar.host.url=https://sonarqube.inf.uva.es/ -Dsonar.login=${env.SONAR_USER_TOKEN} -Dsonar.analysis.mode=publish -Dsonar.issuesReport.console.enable=true -Dsonar.jacoco.reportPath=target/coverage/jacoco.exec -Dsonar.junit.reportPaths=target/surefire-reports ${arglineEnd}" />
+		</exec>
+	</target>
+
+	<!-- Objetivo documentar -->
+	<target name="documentar" description="genera el site de la documentación del proyecto" depends="os-check">
+		<exec dir="." executable="${executable}">
+			<arg line="${arglineIni} mvn site${arglineEnd}" />
+		</exec>
+	</target>
+
+	<!-- Objetivo limpiar -->
+	<target name="limpiar" description="Elimina archivos innecesarios" depends="os-check" >
+		<exec dir="." executable="${executable}">
+			<arg line="${arglineIni} mvn clean${arglineEnd}" />
+		</exec>
+	</target>
+
+	<target name="os-check" description="Determina sistema operativo y asigna executable y argline" depends="os-check-unix, os-check-win"/>
+	<target name="os-check-unix" if="isUnix">	
+		<property name="executable"  value="sh"/>
+		<property name="arglineIni"  value="-c '"/>
+		<property name="arglineEnd"  value="'"/>
+	</target>
+	<target name="os-check-win" if="isWindows">
+		<property name="executable"  value="cmd"/>
+		<property name="arglineIni"  value="/c "/>
+		<property name="arglineEnd"  value=""/>
+	</target>
+</project>
+
